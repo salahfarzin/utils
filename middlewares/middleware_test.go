@@ -1,4 +1,4 @@
-package middleware
+package middlewares
 
 import (
 	"context"
@@ -17,7 +17,7 @@ func TestGetUser(t *testing.T) {
 	user := &User{ID: "123", Uuid: "uuid-123", Email: "test@example.com"}
 
 	// Test with user in context
-	ctx := context.WithValue(context.Background(), userKey, user)
+	ctx := context.WithValue(context.Background(), UserKey, user)
 	retrievedUser, ok := GetUser(ctx)
 	assert.True(t, ok)
 	assert.Equal(t, user, retrievedUser)
@@ -176,7 +176,7 @@ func TestExtractToken_FromHeader(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-token")
 
-	token := extractToken(req)
+	token := ExtractToken(req)
 	assert.Equal(t, "test-token", token)
 }
 
@@ -184,20 +184,20 @@ func TestExtractToken_FromCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: "access_token", Value: "cookie-token"})
 
-	token := extractToken(req)
+	token := ExtractToken(req)
 	assert.Equal(t, "cookie-token", token)
 }
 
 func TestExtractToken_NoToken(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", http.NoBody)
 
-	token := extractToken(req)
+	token := ExtractToken(req)
 	assert.Equal(t, "", token)
 }
 
 func TestGetUserFromContext_HTTP(t *testing.T) {
 	user := &User{ID: "123", Uuid: "uuid-123", Email: "test@example.com", Roles: []string{"admin"}}
-	ctx := context.WithValue(context.Background(), userKey, user)
+	ctx := context.WithValue(context.Background(), UserKey, user)
 
 	result := GetUserFromContext(ctx)
 	assert.Equal(t, "123", result.ID)

@@ -1,4 +1,4 @@
-package middleware
+package middlewares
 
 import (
 	"context"
@@ -26,11 +26,11 @@ type User struct {
 }
 
 // Context key for user info
-var userKey = &struct{}{}
+var UserKey = &struct{}{}
 
 // GetUser retrieves user info from context
 func GetUser(ctx context.Context) (*User, bool) {
-	user, ok := ctx.Value(userKey).(*User)
+	user, ok := ctx.Value(UserKey).(*User)
 	return user, ok
 }
 
@@ -41,7 +41,7 @@ type AuthServiceFunc func(token string) (*User, error)
 func AuthMiddleware(authService AuthServiceFunc) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := extractToken(r)
+			token := ExtractToken(r)
 			if token == "" {
 				http.Error(w, "missing access token", http.StatusUnauthorized)
 				return
@@ -56,7 +56,7 @@ func AuthMiddleware(authService AuthServiceFunc) Middleware {
 			}
 
 			// Set user in context for HTTP handlers
-			ctx := context.WithValue(r.Context(), userKey, user)
+			ctx := context.WithValue(r.Context(), UserKey, user)
 
 			// Set headers for gRPC-Gateway to forward as metadata
 			r.Header.Set("x-user-id", user.ID)
@@ -68,7 +68,7 @@ func AuthMiddleware(authService AuthServiceFunc) Middleware {
 	}
 }
 
-func extractToken(r *http.Request) string {
+func ExtractToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 		return authHeader[7:]
@@ -138,7 +138,7 @@ func TestAuthMiddleware() Middleware {
 			}
 
 			// Set user in context for HTTP handlers
-			ctx := context.WithValue(r.Context(), userKey, user)
+			ctx := context.WithValue(r.Context(), UserKey, user)
 
 			// Set headers for gRPC-Gateway to forward as metadata
 			r.Header.Set("x-user-id", user.ID)
