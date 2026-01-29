@@ -1,8 +1,7 @@
-package utils
+package tracing
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -16,12 +15,7 @@ const (
 	UserIDKey  ctxKey = "user_id"
 )
 
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	TraceID string `json:"trace_id,omitempty"`
-}
-
-// GetOrGenerateTraceID tries to extract a trace ID from gRPC metadata, or generates a new one if not present.
+// GetOrGenerateTraceID tries to extract a trace ID from gRPC metadata, or generates a new one.
 func GetOrGenerateTraceID(ctx context.Context) string {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if vals := md.Get("x-trace-id"); len(vals) > 0 && vals[0] != "" {
@@ -65,13 +59,6 @@ func SetUserIDHeader(w http.ResponseWriter, userID string) {
 	w.Header().Set("X-User-Id", userID)
 }
 
-// WriteJSONError writes a standardized JSON error response for REST APIs.
-func WriteJSONError(w http.ResponseWriter, status int, errMsg, traceID string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: errMsg, TraceID: traceID})
-}
-
 // InjectTraceIDToContext returns a new context with the trace ID.
 func InjectTraceIDToContext(ctx context.Context, traceID string) context.Context {
 	return context.WithValue(ctx, TraceIDKey, traceID)
@@ -82,7 +69,7 @@ func InjectUserIDToContext(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, UserIDKey, userID)
 }
 
-// GetTraceIDFromContext extracts the trace ID from context (for both REST and gRPC).
+// GetTraceIDFromContext extracts the trace ID from context.
 func GetTraceIDFromContext(ctx context.Context) string {
 	if v := ctx.Value(TraceIDKey); v != nil {
 		if s, ok := v.(string); ok {
@@ -92,7 +79,7 @@ func GetTraceIDFromContext(ctx context.Context) string {
 	return GetOrGenerateTraceID(ctx)
 }
 
-// GetUserIDFromContextGeneric extracts the user ID from context (for both REST and gRPC).
+// GetUserIDFromContextGeneric extracts the user ID from context.
 func GetUserIDFromContextGeneric(ctx context.Context) string {
 	if v := ctx.Value(UserIDKey); v != nil {
 		if s, ok := v.(string); ok {
