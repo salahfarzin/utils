@@ -152,6 +152,8 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Body.String(), `"error":"invalid access token"`)
 }
 
 func TestAuthMiddleware_MissingToken(t *testing.T) {
@@ -170,6 +172,8 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Body.String(), `"error":"missing access token"`)
 }
 
 func TestExtractToken_FromHeader(t *testing.T) {

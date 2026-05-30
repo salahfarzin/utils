@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/salahfarzin/utils/rest"
+	"github.com/salahfarzin/utils/tracing"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -41,17 +43,17 @@ type AuthServiceFunc func(token string) (*User, error)
 func AuthMiddleware(authService AuthServiceFunc) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			traceID := tracing.GetTraceIDFromContext(r.Context())
+
 			token := ExtractToken(r)
 			if token == "" {
-				http.Error(w, "missing access token", http.StatusUnauthorized)
+				rest.WriteJSONError(w, http.StatusUnauthorized, "missing access token", traceID)
 				return
 			}
 
 			user, err := authService(token)
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				http.Error(w, `{"Code": 401, "message": "invalid access token"}`, http.StatusUnauthorized)
+				rest.WriteJSONError(w, http.StatusUnauthorized, "invalid access token", traceID)
 				return
 			}
 
