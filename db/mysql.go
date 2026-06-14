@@ -25,6 +25,7 @@ type MySQLConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime int
+	MultiStatements bool
 }
 
 func NewMySQLStorage(cfg MySQLConfig) (*sql.DB, error) {
@@ -36,6 +37,8 @@ func NewMySQLStorage(cfg MySQLConfig) (*sql.DB, error) {
 		Net:                  "tcp",
 		AllowNativePasswords: true,
 		ParseTime:            true,
+		Loc:                  time.UTC,
+		MultiStatements:      cfg.MultiStatements,
 	}
 
 	if cfg.SSLCA != "" {
@@ -81,5 +84,9 @@ func NewMySQLStorage(cfg MySQLConfig) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+
+	// Set session timezone to UTC
+	_, _ = db.ExecContext(ctx, "SET time_zone = '+00:00'")
+
 	return db, nil
 }
