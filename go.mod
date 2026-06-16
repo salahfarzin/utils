@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.11.2
-	github.com/salahfarzin/logger v0.1.2
+	github.com/salahfarzin/logger v0.1.3
 	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.79.1
 )
