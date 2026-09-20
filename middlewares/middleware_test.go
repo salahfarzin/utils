@@ -110,7 +110,7 @@ func TestLoggingMiddleware(t *testing.T) {
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	authService := func(token string) (*User, error) {
 		if token == "valid-token" {
-			return &User{ID: "123", Uuid: "uuid-123", Email: "test@example.com", Roles: []string{"admin"}}, nil
+			return &User{ID: "123", Uuid: "uuid-123", ParentUuid: "parent-uuid-123", Email: "test@example.com", Roles: []string{"admin"}}, nil
 		}
 		return nil, http.ErrNoCookie
 	}
@@ -132,7 +132,40 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "123", req.Header.Get("x-user-id"))
 	assert.Equal(t, "uuid-123", req.Header.Get("x-user-uuid"))
+	assert.Equal(t, "parent-uuid-123", req.Header.Get("x-user-parent-uuid"))
 	assert.Equal(t, "admin", req.Header.Get("x-user-roles"))
+}
+
+func TestAuthMiddleware_ValidatedParentOverridesInboundHeader(t *testing.T) {
+	authService := func(token string) (*User, error) {
+		return &User{ID: "123", Uuid: "uuid-123", ParentUuid: "validated-parent"}, nil
+	}
+
+	handler := AuthMiddleware(authService)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "validated-parent", r.Header.Get("x-user-parent-uuid"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("x-user-parent-uuid", "attacker-parent")
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestTestAuthMiddleware_HTTPParentHeader(t *testing.T) {
+	handler := TestAuthMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := GetUser(r.Context())
+		assert.True(t, ok)
+		assert.Equal(t, "parent-uuid-123", user.ParentUuid)
+		assert.Equal(t, "parent-uuid-123", r.Header.Get("x-user-parent-uuid"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req.Header.Set("X-User", "123")
+	req.Header.Set("X-User-Uuid", "uuid-123")
+	req.Header.Set("X-User-Parent-Uuid", "parent-uuid-123")
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
 }
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
@@ -200,29 +233,39 @@ func TestExtractToken_NoToken(t *testing.T) {
 }
 
 func TestGetUserFromContext_HTTP(t *testing.T) {
-	user := &User{ID: "123", Uuid: "uuid-123", Email: "test@example.com", Roles: []string{"admin"}}
+	user := &User{ID: "123", Uuid: "uuid-123", ParentUuid: "parent-uuid-123", Email: "test@example.com", Roles: []string{"admin"}}
 	ctx := context.WithValue(context.Background(), UserKey, user)
 
 	result := GetUserFromContext(ctx)
 	assert.Equal(t, "123", result.ID)
 	assert.Equal(t, "uuid-123", result.Uuid)
+	assert.Equal(t, "parent-uuid-123", result.ParentUuid)
 	assert.Equal(t, "test@example.com", result.Email)
 	assert.Equal(t, []string{"admin"}, result.Roles)
 }
 
 func TestGetUserFromContext_gRPC(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.MD{
-		"x-user-id":    []string{"grpc-123"},
-		"x-user-uuid":  []string{"grpc-uuid-123"},
-		"x-user-email": []string{"grpc@example.com"},
-		"x-user-roles": []string{"admin,user"},
+		"x-user-id":          []string{"grpc-123"},
+		"x-user-uuid":        []string{"grpc-uuid-123"},
+		"x-user-parent-uuid": []string{"grpc-parent-uuid-123"},
+		"x-user-email":       []string{"grpc@example.com"},
+		"x-user-roles":       []string{"admin,user"},
 	})
 
 	result := GetUserFromContext(ctx)
 	assert.Equal(t, "grpc-123", result.ID)
 	assert.Equal(t, "grpc-uuid-123", result.Uuid)
+	assert.Equal(t, "grpc-parent-uuid-123", result.ParentUuid)
 	assert.Equal(t, "grpc@example.com", result.Email)
 	assert.Equal(t, []string{"admin", "user"}, result.Roles)
+}
+
+func TestGetUserFromContext_gRPCWithoutParent(t *testing.T) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-user-uuid", "grpc-uuid-123"))
+
+	result := GetUserFromContext(ctx)
+	assert.Equal(t, "", result.ParentUuid)
 }
 
 func TestGetUserFromContext_NoUser(t *testing.T) {
