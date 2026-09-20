@@ -12,19 +12,20 @@ import (
 )
 
 type User struct {
-	ID        string
-	Uuid      string
-	Email     string
-	Roles     []string
-	IsActive  *bool     `json:"is_active"`
-	Mobile    *string   `json:"mobile"`
-	FirstName *string   `json:"first_name"`
-	LastName  *string   `json:"last_name"`
-	Gender    *string   `json:"gender"`
-	Birthdate *string   `json:"birthdate"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Avatar    *string   `json:"avatar"`
+	ID         string
+	Uuid       string
+	ParentUuid string
+	Email      string
+	Roles      []string
+	IsActive   *bool     `json:"is_active"`
+	Mobile     *string   `json:"mobile"`
+	FirstName  *string   `json:"first_name"`
+	LastName   *string   `json:"last_name"`
+	Gender     *string   `json:"gender"`
+	Birthdate  *string   `json:"birthdate"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	Avatar     *string   `json:"avatar"`
 }
 
 // Context key for user info
@@ -63,6 +64,7 @@ func AuthMiddleware(authService AuthServiceFunc) Middleware {
 			// Set headers for gRPC-Gateway to forward as metadata
 			r.Header.Set("x-user-id", user.ID)
 			r.Header.Set("x-user-uuid", user.Uuid)
+			r.Header.Set("x-user-parent-uuid", user.ParentUuid)
 			r.Header.Set("x-user-roles", strings.Join(user.Roles, ","))
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -92,6 +94,7 @@ func GetUserFromContext(ctx context.Context) User {
 		// Try x-user-id, x-user-uuid, x-user-roles (string fields)
 		id := ""
 		uuid := ""
+		parentUuid := ""
 		email := ""
 		roles := []string{}
 		if ids := md.Get("x-user-id"); len(ids) > 0 {
@@ -99,6 +102,9 @@ func GetUserFromContext(ctx context.Context) User {
 		}
 		if uuids := md.Get("x-user-uuid"); len(uuids) > 0 {
 			uuid = uuids[0]
+		}
+		if parentUuids := md.Get("x-user-parent-uuid"); len(parentUuids) > 0 {
+			parentUuid = parentUuids[0]
 		}
 		if emails := md.Get("x-user-email"); len(emails) > 0 {
 			email = emails[0]
@@ -108,7 +114,7 @@ func GetUserFromContext(ctx context.Context) User {
 		}
 		// If at least id or uuid is present, return a User
 		if id != "" || uuid != "" {
-			return User{ID: id, Uuid: uuid, Email: email, Roles: roles}
+			return User{ID: id, Uuid: uuid, ParentUuid: parentUuid, Email: email, Roles: roles}
 		}
 	}
 
@@ -123,6 +129,7 @@ func TestAuthMiddleware() Middleware {
 			// Extract user info from test headers
 			userID := r.Header.Get("X-User")
 			userUUID := r.Header.Get("X-User-Uuid")
+			userParentUUID := r.Header.Get("X-User-Parent-Uuid")
 			rolesHeader := r.Header.Get("X-User-Roles")
 
 			// Parse roles
@@ -133,10 +140,11 @@ func TestAuthMiddleware() Middleware {
 
 			// Create test user
 			user := &User{
-				ID:    userID,
-				Uuid:  userUUID,
-				Email: userID + "@test.com",
-				Roles: roles,
+				ID:         userID,
+				Uuid:       userUUID,
+				ParentUuid: userParentUUID,
+				Email:      userID + "@test.com",
+				Roles:      roles,
 			}
 
 			// Set user in context for HTTP handlers
@@ -145,6 +153,7 @@ func TestAuthMiddleware() Middleware {
 			// Set headers for gRPC-Gateway to forward as metadata
 			r.Header.Set("x-user-id", user.ID)
 			r.Header.Set("x-user-uuid", user.Uuid)
+			r.Header.Set("x-user-parent-uuid", user.ParentUuid)
 			r.Header.Set("x-user-roles", strings.Join(user.Roles, ","))
 
 			next.ServeHTTP(w, r.WithContext(ctx))
