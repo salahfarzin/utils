@@ -12,19 +12,22 @@ import (
 )
 
 type User struct {
-	ID        string
-	Uuid      string
-	Email     string
-	Roles     []string
-	IsActive  *bool     `json:"is_active"`
-	Mobile    *string   `json:"mobile"`
-	FirstName *string   `json:"first_name"`
-	LastName  *string   `json:"last_name"`
-	Gender    *string   `json:"gender"`
-	Birthdate *string   `json:"birthdate"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Avatar    *string   `json:"avatar"`
+	ID    string
+	Uuid  string
+	Email string
+	Roles []string
+	// Permissions are set when the user came from auth's /auth/me (see
+	// NewAuthMeFunc); they are not forwarded in x-user-* headers.
+	Permissions Permissions `json:"permissions"`
+	IsActive    *bool       `json:"is_active"`
+	Mobile      *string     `json:"mobile"`
+	FirstName   *string     `json:"first_name"`
+	LastName    *string     `json:"last_name"`
+	Gender      *string     `json:"gender"`
+	Birthdate   *string     `json:"birthdate"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	Avatar      *string     `json:"avatar"`
 }
 
 // Context key for user info
