@@ -14,5 +14,6 @@ type ErrorResponse struct {
 func WriteJSONError(w http.ResponseWriter, status int, errMsg, traceID string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: errMsg, TraceID: traceID})
+	// The status is already written, so an encode error can't be reported.
+	_ = json.NewEncoder(w).Encode(ErrorResponse{Error: errMsg, TraceID: traceID})
 }
