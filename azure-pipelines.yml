@@ -1,0 +1,40 @@
+# =============================================================================
+# Azure DevOps Pipeline - utils (shared Go library)
+# =============================================================================
+#   Checks: quality and test jobs in parallel. No build, image or deploy
+#   stages: services consume utils as a released module version.
+#
+# Templates live in .azure/
+#   stages/   checks.yml
+#   steps/    setup-go.yml
+#
+# Optional secret variable: CODECOV_TOKEN
+#
+# Azure Repos ignores the `pr:` keyword: to run this on pull requests, add a
+# Build Validation branch policy on main / dev pointing at this pipeline.
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - dev
+      - feature/*
+  tags:
+    include:
+      - v*
+
+pr:
+  branches:
+    include:
+      - main
+      - dev
+
+variables:
+  GOMODCACHE: $(Pipeline.Workspace)/.gomod
+
+# Self-hosted, same as auth and notification.
+pool: Dev
+
+stages:
+  - template: .azure/stages/checks.yml
