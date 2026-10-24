@@ -39,6 +39,8 @@ func NewMySQLStorage(cfg MySQLConfig) (*sql.DB, error) {
 		ParseTime:            true,
 		Loc:                  time.UTC,
 		MultiStatements:      cfg.MultiStatements,
+		// Set on every new connection, so each session is in UTC like Loc.
+		Params: map[string]string{"time_zone": "'+00:00'"},
 	}
 
 	if cfg.SSLCA != "" {
@@ -84,9 +86,6 @@ func NewMySQLStorage(cfg MySQLConfig) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
-
-	// Set session timezone to UTC
-	_, _ = db.ExecContext(ctx, "SET time_zone = '+00:00'")
 
 	return db, nil
 }

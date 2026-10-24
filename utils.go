@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // GetEnvAsBool gets an environment variable as a boolean.
@@ -52,6 +53,21 @@ func SplitAndTrim(s, sep string) []string {
 		parts[i] = strings.TrimSpace(part)
 	}
 	return parts
+}
+
+// Truncate cuts s to at most n bytes without splitting a multibyte rune, so
+// valid UTF-8 stays valid. It suits byte limits such as a column's length.
+func Truncate(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // parseCORSOrigins reads CORS allowed origins from environment variable

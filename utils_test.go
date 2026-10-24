@@ -3,8 +3,41 @@ package utils
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		n    int
+		want string
+	}{
+		{name: "Shorter than the limit", s: "abc", n: 5, want: "abc"},
+		{name: "Exactly the limit", s: "abc", n: 3, want: "abc"},
+		{name: "ASCII cut", s: "abcdef", n: 4, want: "abcd"},
+		{name: "Cut inside a two-byte rune", s: "سلام", n: 3, want: "س"},
+		{name: "Cut on a rune boundary", s: "سلام", n: 4, want: "سل"},
+		{name: "Cut inside a four-byte rune", s: "a😀", n: 3, want: "a"},
+		{name: "Zero limit", s: "abc", n: 0, want: ""},
+		{name: "Negative limit", s: "abc", n: -1, want: ""},
+		{name: "Long non-ASCII", s: strings.Repeat("س", 200), n: 255, want: strings.Repeat("س", 127)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Truncate(tt.s, tt.n)
+			if got != tt.want {
+				t.Errorf("Truncate() = %q, want %q", got, tt.want)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("Truncate() = %q is not valid UTF-8", got)
+			}
+		})
+	}
+}
 
 func TestGetEnvAsBool(t *testing.T) {
 	tests := []struct {
