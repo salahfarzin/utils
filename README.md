@@ -76,6 +76,10 @@ import mw "github.com/salahfarzin/utils/middlewares"
 
 // One client for /auth/me; the user it returns carries auth's permissions.
 authenticate := mw.NewAuthMeFunc("http://auth:8082/api/v1", nil)
+
+// Optional: trust an accepted token for a minute instead of asking auth on
+// every request. Refusals are not cached.
+authenticate = mw.CachedAuth(authenticate, time.Minute)
 ```
 
 ### gRPC: `AuthUnaryInterceptor` / `AuthStreamInterceptor`
