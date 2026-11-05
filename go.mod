@@ -1,6 +1,6 @@
 module github.com/salahfarzin/utils
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/go-sql-driver/mysql v1.9.3
