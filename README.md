@@ -107,6 +107,10 @@ server := grpc.NewServer(
   gateway forwards, or from the `access_token` cookie.
 - **The caller:** handlers read it with `mw.GetUser(ctx)` or
   `mw.GetUserFromContext(ctx)`.
+- **The caller's token:** `mw.TokenFromIncomingContext(ctx)` returns it, read
+  the same way, for a handler that calls another service as the caller (e.g.
+  the AI gateway). Don't parse the metadata yourself: a token the interceptor
+  accepted from the cookie would be missed.
 - **Forged headers:** incoming `x-user-*` metadata is always dropped, even on
   public methods, so on the gRPC port it can't name the caller.
 - **`PublicMethods`:** takes full methods (`/pkg.Service/Method`) or whole
