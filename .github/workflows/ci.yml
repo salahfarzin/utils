@@ -63,14 +63,21 @@ jobs:
           golangci-lint run --timeout=5m
 
   # ──────────────────────────────────────────────────────────────────────────
-  # 2. Tests & Coverage
+  # 2. Tests, Coverage & SonarQube
   # ──────────────────────────────────────────────────────────────────────────
   test:
     name: Tests & Coverage
     runs-on: ubuntu-latest
+    # Job-level so the SonarQube step's `if` can see it.
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
+      # Full history: SonarQube uses git blame to tell new code from old, and
+      # diffs against the PR base; a shallow clone makes every line "new".
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -89,7 +96,10 @@ jobs:
             -coverprofile=coverage/coverage.out \
             ./...
 
+      # The steps after the tests also run when they fail, so SonarQube
+      # analyzes whatever coverage they wrote.
       - name: Coverage report
+        if: ${{ !cancelled() && hashFiles('coverage/coverage.out') != '' }}
         run: |
           COVERAGE=$(go tool cover -func=coverage/coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
@@ -97,6 +107,7 @@ jobs:
           go tool cover -html=coverage/coverage.out -o coverage/coverage.html
 
       - name: Upload coverage report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -104,8 +115,87 @@ jobs:
           retention-days: 7
 
       - name: Upload to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/coverage.out
           flags: unittests
           fail_ci_if_error: false
+
+      # go test names files by import path (github.com/salahfarzin/utils/
+      # middlewares/auth.go); the scanner sees them relative to the repo root.
+      # Unrewritten, SonarQube matches no file and silently reports 0%.
+      # After the Codecov upload, which takes the paths as they were.
+      - name: Rewrite coverage paths for SonarQube
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -s coverage/coverage.out ]; then
+            MODULE=$(awk '/^module /{print $2; exit}' go.mod)
+            sed -i "s#^${MODULE}/##" coverage/coverage.out
+          else
+            echo "::warning::No coverage report found - SonarQube will show 0% coverage"
+          fi
+
+      # PRs and branches each get their own analysis (community branch
+      # plugin). Without the SONAR_HOST_URL variable or the SONAR_TOKEN secret
+      # (e.g. fork PRs) it's skipped; continue-on-error so an unreachable
+      # SonarQube never blocks a merge. The scan only uploads: the gate is
+      # checked next. Not on a version tag: its commit was analyzed on its
+      # branch.
+      - name: SonarQube scan
+        id: sonar
+        if: ${{ !cancelled() && github.ref_type != 'tag' && vars.SONAR_HOST_URL != '' && env.SONAR_TOKEN != '' }}
+        continue-on-error: true
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          args: >
+            ${{ github.event_name == 'pull_request'
+              && format('-Dsonar.pullrequest.key={0} -Dsonar.pullrequest.branch={1} -Dsonar.pullrequest.base={2}', github.event.pull_request.number, github.head_ref, github.base_ref)
+              || format('-Dsonar.branch.name={0}', github.ref_name) }}
+
+      # A failed quality gate fails the job; a scan that didn't reach the
+      # server skips this, so an outage still doesn't.
+      - name: SonarQube quality gate
+        id: gate
+        if: ${{ !cancelled() && steps.sonar.outcome == 'success' }}
+        uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1.2.1
+        timeout-minutes: 5
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+
+      # Every open issue on what was analyzed, so they can be fixed without
+      # opening SonarQube. Only reads: never fails the job.
+      - name: SonarQube open issues
+        if: ${{ !cancelled() && steps.sonar.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then scope="pullRequest=$PR_NUMBER"; else scope="branch=$(jq -rn --arg b "$BRANCH" '$b|@uri')"; fi
+          curl -sf -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/issues/search?componentKeys=utils&$scope&resolved=false&ps=500&s=FILE_LINE" \
+            | jq -r '"\(.total) open issues", (.issues[] | "\(.component | sub("^utils:"; "")):\(.line // 1) \(.severity) \(.rule) \(.message)")'
+
+      # The gate's own log says only that it failed: list the conditions it
+      # failed on, the new code's issues and the hotspots still to review.
+      - name: SonarQube failed conditions
+        if: ${{ failure() && steps.gate.outcome == 'failure' }}
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then scope="pullRequest=$PR_NUMBER"; else scope="branch=$(jq -rn --arg b "$BRANCH" '$b|@uri')"; fi
+          curl -sf -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=utils&$scope" \
+            | jq -r '.projectStatus.conditions[] | select(.status == "ERROR") | "::error::\(.metricKey) is \(.actualValue), must be \(if .comparator == "LT" then "at least" else "at most" end) \(.errorThreshold)"'
+          curl -sf -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/issues/search?componentKeys=utils&$scope&resolved=false&inNewCodePeriod=true&ps=500" \
+            | jq -r '.issues[] | "\(.component | sub("^utils:"; "")):\(.line // 1) \(.rule) \(.message)"'
+          hotspots=$(curl -s -w '\n%{http_code}' -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/hotspots/search?projectKey=utils&$scope&status=TO_REVIEW&ps=500")
+          if [ "$(tail -n1 <<<"$hotspots")" = 200 ]; then
+            sed '$d' <<<"$hotspots" | jq -r '.hotspots[] | "hotspot \(.component | sub("^utils:"; "")):\(.line // 1) \(.ruleKey) \(.message)"'
+          else
+            echo "::warning::cannot list hotspots: $hotspots"
+          fi
