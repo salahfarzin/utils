@@ -138,14 +138,12 @@ jobs:
 
       # PRs and branches each get their own analysis (community branch
       # plugin). Without the SONAR_HOST_URL variable or the SONAR_TOKEN secret
-      # (e.g. fork PRs) it's skipped; continue-on-error so an unreachable
-      # SonarQube never blocks a merge. The scan only uploads: the gate is
-      # checked next. Not on a version tag: its commit was analyzed on its
-      # branch.
+      # (e.g. fork PRs) it's skipped. Otherwise SonarQube blocks: a scan that
+      # fails fails the job, as a failed quality gate does next. Not on a
+      # version tag: its commit was analyzed on its branch.
       - name: SonarQube scan
         id: sonar
         if: ${{ !cancelled() && github.ref_type != 'tag' && vars.SONAR_HOST_URL != '' && env.SONAR_TOKEN != '' }}
-        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
@@ -155,8 +153,7 @@ jobs:
               && format('-Dsonar.pullrequest.key={0} -Dsonar.pullrequest.branch={1} -Dsonar.pullrequest.base={2}', github.event.pull_request.number, github.head_ref, github.base_ref)
               || format('-Dsonar.branch.name={0}', github.ref_name) }}
 
-      # A failed quality gate fails the job; a scan that didn't reach the
-      # server skips this, so an outage still doesn't.
+      # A failed quality gate fails the job, and the next steps list why.
       - name: SonarQube quality gate
         id: gate
         if: ${{ !cancelled() && steps.sonar.outcome == 'success' }}
