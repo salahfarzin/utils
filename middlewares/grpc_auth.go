@@ -85,7 +85,7 @@ func (a *grpcAuth) check(ctx context.Context, fullMethod string) (context.Contex
 	ctx = withoutUserMetadata(ctx)
 	public := a.isPublic(fullMethod)
 
-	token := tokenFromMetadata(ctx)
+	token := TokenFromIncomingContext(ctx)
 	if token == "" {
 		if public {
 			return ctx, nil
@@ -116,10 +116,12 @@ func (a *grpcAuth) isPublic(fullMethod string) bool {
 	return false
 }
 
-// tokenFromMetadata finds the access token the way ExtractToken does for
-// HTTP: a bearer authorization, then the access_token cookie (forwarded by
-// the REST gateway as grpcgateway-cookie).
-func tokenFromMetadata(ctx context.Context) string {
+// TokenFromIncomingContext is the access token of a gRPC call, found where
+// AuthUnaryInterceptor finds it, the way ExtractToken does for HTTP: a bearer
+// authorization, then the access_token cookie (forwarded by the REST gateway
+// as grpcgateway-cookie). A handler passing the caller's token on to another
+// service reads it here; "" when the call has none.
+func TokenFromIncomingContext(ctx context.Context) string {
 	md, _ := metadata.FromIncomingContext(ctx)
 	for _, v := range md.Get("authorization") {
 		if token, ok := strings.CutPrefix(v, "Bearer "); ok && token != "" {

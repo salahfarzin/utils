@@ -9,4 +9,4 @@ tmp
 
 .env
 
-__debug_*
+__debug_*coverage/

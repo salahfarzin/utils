@@ -1,14 +1,17 @@
 # =============================================================================
 # Azure DevOps Pipeline - utils (shared Go library)
 # =============================================================================
-#   Checks: quality and test jobs in parallel. No build, image or deploy
-#   stages: services consume utils as a released module version.
+#   Checks: quality and test jobs in parallel, then a SonarQube analysis
+#   (never blocking). No build, image or deploy stages: services consume utils
+#   as a released module version.
 #
 # Templates live in .azure/
 #   stages/   checks.yml
+#   jobs/     sonarqube.yml
 #   steps/    setup-go.yml
 #
-# Optional secret variable: CODECOV_TOKEN
+# Optional secret variables: CODECOV_TOKEN; SONAR_TOKEN (SonarQube Global
+# Analysis Token, as auth's; without it the analysis is skipped)
 #
 # Azure Repos ignores the `pr:` keyword: to run this on pull requests, add a
 # Build Validation branch policy on main / dev pointing at this pipeline.

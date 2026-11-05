@@ -279,3 +279,22 @@ func checkMeUser(t *testing.T, u *User) {
 		t.Errorf("permissions %v", u.Permissions)
 	}
 }
+
+func TestTokenFromIncomingContext(t *testing.T) {
+	for name, tc := range map[string]struct {
+		ctx  context.Context
+		want string
+	}{
+		"bearer":         {incoming("authorization", "Bearer abc"), "abc"},
+		"gateway cookie": {incoming("grpcgateway-cookie", "theme=dark; access_token=abc"), "abc"},
+		"cookie":         {incoming("cookie", "access_token=abc"), "abc"},
+		"bearer first":   {incoming("authorization", "Bearer abc", "grpcgateway-cookie", "access_token=xyz"), "abc"},
+		"not bearer":     {incoming("authorization", "Basic abc"), ""},
+		"empty cookie":   {incoming("grpcgateway-cookie", "access_token="), ""},
+		"no metadata":    {context.Background(), ""},
+	} {
+		if got := TokenFromIncomingContext(tc.ctx); got != tc.want {
+			t.Errorf("%s: got %q, want %q", name, got, tc.want)
+		}
+	}
+}
