@@ -69,37 +69,46 @@ func Read(fsys fs.FS, service string) (Notes, error) {
 	if err != nil {
 		return notes, fmt.Errorf("release notes: %w", err)
 	}
+	if notes.Unreleased, err = readUnreleased(fsys, entries); err != nil {
+		return notes, err
+	}
+	notes.Latest, err = readLatest(fsys, entries)
+	return notes, err
+}
 
+// readUnreleased is unreleased.md, when it has entries.
+func readUnreleased(fsys fs.FS, entries []fs.DirEntry) (string, error) {
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Name() != unreleasedFile {
+			continue
+		}
+		text, err := readText(fsys, unreleasedFile)
+		if err != nil || !sectionHeading.MatchString(text) {
+			return "", err
+		}
+		return text, nil
+	}
+	return "", nil
+}
+
+// readLatest is the newest vX.Y.Z.md, by version; nil when there is none.
+func readLatest(fsys fs.FS, entries []fs.DirEntry) (*Release, error) {
 	var latest string
 	var latestVersion [3]int
 	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() {
-			continue
-		}
-		if name == unreleasedFile {
-			text, err := readText(fsys, name)
-			if err != nil {
-				return notes, err
-			}
-			if sectionHeading.MatchString(text) {
-				notes.Unreleased = text
-			}
-			continue
-		}
-		if version, ok := parseVersion(name); ok && (latest == "" || newer(version, latestVersion)) {
-			latest, latestVersion = name, version
+		version, ok := parseVersion(entry.Name())
+		if ok && !entry.IsDir() && (latest == "" || newer(version, latestVersion)) {
+			latest, latestVersion = entry.Name(), version
 		}
 	}
-
-	if latest != "" {
-		text, err := readText(fsys, latest)
-		if err != nil {
-			return notes, err
-		}
-		notes.Latest = &Release{Version: strings.TrimSuffix(latest, path.Ext(latest)), Notes: text}
+	if latest == "" {
+		return nil, nil
 	}
-	return notes, nil
+	text, err := readText(fsys, latest)
+	if err != nil {
+		return nil, err
+	}
+	return &Release{Version: strings.TrimSuffix(latest, path.Ext(latest)), Notes: text}, nil
 }
 
 // Handler serves service's notes as JSON (Notes) on GET. They are read once,
