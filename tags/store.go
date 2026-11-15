@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Querier is a *sql.DB or a *sql.Tx: Store.Resolve and Store.Set run in the
@@ -307,12 +307,9 @@ func (s *Store) find(ctx context.Context, q Querier, owner, name string) (string
 
 // insert adds owner's tag (general when owner is ""); "" when the name is taken.
 func (s *Store) insert(ctx context.Context, q Querier, owner, name string) (string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return "", err
-	}
+	id := uuid.NewV7()
 	var got string
-	err = q.QueryRowContext(ctx,
+	err := q.QueryRowContext(ctx,
 		fmt.Sprintf("INSERT INTO %s (id, owner_uuid, name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING id", s.Tags),
 		id.String(), owner, name,
 	).Scan(&got)
