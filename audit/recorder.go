@@ -10,7 +10,7 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/salahfarzin/logger"
+	"github.com/salahfarzin/utils/internal/safelog"
 	"github.com/salahfarzin/utils/middlewares"
 	"github.com/salahfarzin/utils/tracing"
 	"go.opentelemetry.io/otel"
@@ -439,19 +439,5 @@ func (r *Recorder) logger() *zap.Logger {
 	if r.cfg.log != nil {
 		return r.cfg.log
 	}
-	return sharedLogger()
-}
-
-// sharedLogger is logger.Get(), which panics until logger.Init has run; a
-// library must not take a service down over a log line, so fall back to
-// stderr.
-func sharedLogger() (l *zap.Logger) {
-	defer func() {
-		if recover() != nil {
-			if l, _ = zap.NewProduction(); l == nil {
-				l = zap.NewNop()
-			}
-		}
-	}()
-	return logger.Get()
+	return safelog.Get()
 }

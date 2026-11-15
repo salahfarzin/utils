@@ -245,10 +245,13 @@ func TestRecordSyncReportsFailure(t *testing.T) {
 func TestRecordDropsWhenQueueFull(t *testing.T) {
 	pub := &memPublisher{block: make(chan struct{})}
 	rec := newTestRecorder(t, pub, WithQueueSize(1))
-	for range 5 {
+	rec.Record(context.Background(), "a", Resource{})
+	// Wait until the worker holds the first (blocked in Publish)…
+	require.Eventually(t, func() bool { return len(rec.queue) == 0 }, time.Second, time.Millisecond)
+	for range 4 {
 		rec.Record(context.Background(), "a", Resource{})
 	}
-	// The worker holds one, the queue one; the other three are dropped.
+	// …then the queue takes one more and the other three are dropped.
 	assert.Eventually(t, func() bool { return rec.Dropped() == 3 }, time.Second, time.Millisecond)
 	close(pub.block)
 	closeRecorder(t, rec)

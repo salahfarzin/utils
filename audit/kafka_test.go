@@ -71,7 +71,3 @@ func TestRecorderOptions(t *testing.T) {
 	assert.Contains(t, string(msg.Value), `"path":"/salary","from":"[REDACTED]","to":"[REDACTED]"`)
 	assert.NotContains(t, string(msg.Value), `"path":"/seen"`)
 }
-
-func TestSharedLoggerWithoutInit(t *testing.T) {
-	assert.NotPanics(t, func() { sharedLogger().Error("no logger.Init yet") })
-}
