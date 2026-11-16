@@ -149,3 +149,17 @@ pass a projection of the record.
 
 `audit/schema/event.v1.json` (JSON Schema) is the contract, also for Python producers.
 A test keeps it in sync with `audit.Event`.
+
+### Producers in other languages
+
+A service that can't use this package (Laravel, Python) publishes the same envelope to the
+same topic, with the record's `before` and/or `after` states and **no `changes`**. The audit
+service then derives them with `audit.Derive`, exactly as a `Recorder` would: the changes
+(nested, list items matched by id), secrets redacted in the states and changes, and
+oversized states dropped (`truncated`). So the producer needs no diff or redaction of its
+own, and every service's events read alike. What it must set:
+
+- `event_id`: a UUID (v7 preferred), new per event, so a re-delivery is stored once.
+- `schema_version` 1, `occurred_at` (RFC 3339), `service`, `action`, `outcome`.
+- `actor`: `{type: user, id, email, ip, user_agent}` inside a request, `system` outside.
+- `resource`: `{type, id}`. Use it as the Kafka key (`type/id`), so one record's events stay in order.
