@@ -10,11 +10,6 @@ Reusable utilities for Go projects supporting both REST (HTTP) and gRPC APIs.
 	- From HTTP headers
 - **Context helpers** for propagating trace/user IDs
 - **Standardized error response** formatting for REST APIs
-- **Telemetry** (`telemetry`): OpenTelemetry traces and metrics over OTLP, trace
-  context through HTTP, gRPC and Kafka, `trace_id` on every log line. See
-  [docs/telemetry.md](docs/telemetry.md).
-- **Audit events** (`audit`): who did what to which record, with the nested
-  before/after diff, published to Kafka. See [docs/audit.md](docs/audit.md).
 
 ## Usage
 

@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"uuid"
-
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type AccessTokenParams struct {
@@ -45,7 +44,7 @@ func GenerateJwtToken(params TokenParams) (string, error) {
 	// Use JTI from params if provided, otherwise generate a unique one
 	jti := params.JTI
 	if jti == "" {
-		jti = uuid.NewV7().String()
+		jti = uuid.New().String()
 	}
 
 	claims := &Claims{

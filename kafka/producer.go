@@ -3,7 +3,6 @@ package kafka
 import (
 	"context"
 
-	"github.com/salahfarzin/utils/telemetry"
 	kafkago "github.com/segmentio/kafka-go"
 )
 
@@ -30,14 +29,12 @@ func NewProducer(cfg ProducerConfig) *Producer {
 	}
 }
 
-// Produce sends a raw message to Kafka, with ctx's trace context in its
-// headers so the consumer continues the trace.
+// Produce sends a raw message to Kafka.
 func (p *Producer) Produce(ctx context.Context, key, value []byte) error {
 	msg := kafkago.Message{
 		Key:   key,
 		Value: value,
 	}
-	telemetry.InjectKafka(ctx, &msg)
 	return p.Writer.WriteMessages(ctx, msg)
 }
 

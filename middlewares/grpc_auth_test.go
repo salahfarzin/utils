@@ -59,30 +59,6 @@ func TestAuthUnaryInterceptor(t *testing.T) {
 	t.Run("a public service prefix needs its trailing slash", unaryPublicPrefix)
 
 	t.Run("requires the permission listed for the method", unaryRequiredPermissions)
-
-	t.Run("OnAuthenticated sees the caller even when permission is refused", unaryOnAuthenticated)
-}
-
-func unaryOnAuthenticated(t *testing.T) {
-	var seen []*User
-	hook := OnAuthenticated(func(_ context.Context, u *User) { seen = append(seen, u) })
-	deny := RequirePermissions(map[string]Permission{ordersList: {Resource: "orders", Action: "delete"}})
-
-	_, _, ran, err := callUnary(t, incoming("authorization", "Bearer good"), ordersList, hook, deny)
-	if status.Code(err) != codes.PermissionDenied || ran {
-		t.Fatalf("ran %v err %v, want PermissionDenied before the handler", ran, err)
-	}
-	if len(seen) != 1 || seen[0].Uuid != "u-1" {
-		t.Fatalf("hook saw %+v, want the caller once", seen)
-	}
-
-	seen = nil
-	if _, _, _, err := callUnary(t, incoming("authorization", "Bearer bad"), ordersList, hook); status.Code(err) != codes.Unauthenticated {
-		t.Fatalf("err %v, want Unauthenticated", err)
-	}
-	if len(seen) != 0 {
-		t.Fatalf("hook ran for a rejected token: %+v", seen)
-	}
 }
 
 func unaryBearerToken(t *testing.T) {

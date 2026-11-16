@@ -4,8 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"uuid"
-
+	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -23,7 +22,7 @@ func GetOrGenerateTraceID(ctx context.Context) string {
 			return vals[0]
 		}
 	}
-	return uuid.NewV7().String()
+	return uuid.New().String()
 }
 
 // GetUserIDFromContext tries to extract a user ID from gRPC metadata.
@@ -42,7 +41,7 @@ func GetOrGenerateTraceIDFromHeader(r *http.Request) string {
 	if traceID != "" {
 		return traceID
 	}
-	return uuid.NewV7().String()
+	return uuid.New().String()
 }
 
 // GetUserIDFromHeader extracts user ID from HTTP headers.
