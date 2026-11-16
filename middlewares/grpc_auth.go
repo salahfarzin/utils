@@ -14,9 +14,18 @@ import (
 type GRPCAuthOption func(*grpcAuth)
 
 type grpcAuth struct {
-	authenticate AuthServiceFunc
-	public       []string
-	required     map[string]Permission
+	authenticate    AuthServiceFunc
+	public          []string
+	required        map[string]Permission
+	onAuthenticated []func(context.Context, *User)
+}
+
+// OnAuthenticated calls fn with the verified caller as soon as the token is
+// accepted, before the permission check, so code running before this
+// interceptor in the chain (audit.UnaryServerInterceptor) learns who called
+// even when RequirePermissions then refuses the call.
+func OnAuthenticated(fn func(ctx context.Context, user *User)) GRPCAuthOption {
+	return func(a *grpcAuth) { a.onAuthenticated = append(a.onAuthenticated, fn) }
 }
 
 // PublicMethods leaves methods open to callers without a token. Each entry is a
@@ -100,6 +109,9 @@ func (a *grpcAuth) check(ctx context.Context, fullMethod string) (context.Contex
 		return nil, status.Error(codes.Unauthenticated, "invalid access token")
 	}
 	ctx = context.WithValue(ctx, UserKey, user)
+	for _, fn := range a.onAuthenticated {
+		fn(ctx, user)
+	}
 
 	if p, ok := a.required[fullMethod]; ok && !user.Can(p.Resource, p.Action) {
 		return nil, status.Errorf(codes.PermissionDenied, "requires %s on %s", p.Action, p.Resource)
