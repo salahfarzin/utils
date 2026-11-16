@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/salahfarzin/logger"
+	"github.com/salahfarzin/utils/telemetry"
 	kafkago "github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/scram"
 	"go.uber.org/zap"
@@ -166,8 +167,11 @@ func RunConsumerLoopWithSleeper(reader MessageReader, handler Handler, sleeper S
 			zap.Int64("offset", msg.Offset),
 			zap.Time("time", msg.Time))
 
-		// Use the exported handler for testability
-		if err := handler.Handle(ctx, msg.Key, msg.Value); err != nil {
+		// Continue the producer's trace (traceparent header) in a consumer span.
+		mctx, span := telemetry.StartKafkaConsumer(ctx, msg)
+		err = handler.Handle(mctx, msg.Key, msg.Value)
+		telemetry.EndSpan(span, err)
+		if err != nil {
 			log.Error("Kafka consumer: failed to handle message", zap.Error(err))
 			continue
 		}
