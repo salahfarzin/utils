@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -416,7 +417,7 @@ func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor)
 		}
 		switch {
 		case user != nil:
-			a = Actor{Type: ActorUser, ID: user.Uuid, Email: user.Email}
+			a = Actor{Type: ActorUser, ID: user.Uuid, Email: user.Email, Name: fullName(user)}
 			if a.ID == "" {
 				a.ID = user.ID
 			}
@@ -443,4 +444,15 @@ func (r *Recorder) logger() *zap.Logger {
 		return r.cfg.log
 	}
 	return safelog.Get()
+}
+
+// fullName is the user's first and last name, as far as auth gave them.
+func fullName(u *middlewares.User) string {
+	var parts []string
+	for _, p := range []*string{u.FirstName, u.LastName} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			parts = append(parts, strings.TrimSpace(*p))
+		}
+	}
+	return strings.Join(parts, " ")
 }

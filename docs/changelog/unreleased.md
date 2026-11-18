@@ -12,6 +12,10 @@ new version, set the heading and date, and start a fresh `unreleased.md`.
   (`event.v1.json`) allows the field. The audit service ignores fields it doesn't know,
   so services and the audit service can take this version in any order.
 
+- `audit`: events name the person, `actor.name` (first and last name, from the user auth
+  gave the request), next to the email. Many sign in with a phone number and have no
+  email, so a log of uuids was all a reader saw. The schema allows the field.
+
 ## Fixes
 
 - `kafka`: a consumer no longer stops for good when the broker restarts. Its loop took any

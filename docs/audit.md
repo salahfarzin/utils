@@ -164,5 +164,5 @@ own, and every service's events read alike. What it must set:
 
 - `event_id`: a UUID (v7 preferred), new per event, so a re-delivery is stored once.
 - `schema_version` 1, `occurred_at` (RFC 3339), `service`, `action`, `outcome`.
-- `actor`: `{type: user, id, email, ip, user_agent, referer}` inside a request, `system` outside.
+- `actor`: `{type: user, id, email, name, ip, user_agent, referer}` inside a request, `system` outside. `name` is the user's first and last name from auth, for people reading the log: many sign in with a phone and have no email.
 - `resource`: `{type, id}`. Use it as the Kafka key (`type/id`), so one record's events stay in order.

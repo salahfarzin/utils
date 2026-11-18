@@ -30,6 +30,7 @@
         "type": { "enum": ["user", "service", "system", "anonymous"] },
         "id": { "type": "string" },
         "email": { "type": "string" },
+        "name": { "type": "string" },
         "ip": { "type": "string" },
         "user_agent": { "type": "string" },
         "referer": { "type": "string" }

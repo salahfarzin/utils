@@ -37,7 +37,8 @@ func authOK(token string) (*middlewares.User, error) {
 	if token != "good" {
 		return nil, errors.New("invalid")
 	}
-	return &middlewares.User{ID: "7", Uuid: "u-1", Email: "jane@example.com",
+	first, last := "Jane", " Doe "
+	return &middlewares.User{ID: "7", Uuid: "u-1", Email: "jane@example.com", FirstName: &first, LastName: &last,
 		Permissions: middlewares.Permissions{"orders": {"view"}}}, nil
 }
 
@@ -94,7 +95,7 @@ func TestUnaryInterceptor(t *testing.T) {
 
 	evs := pub.events(t)
 	require.Len(t, evs, 5)
-	jane := Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", IP: "203.0.113.7", UserAgent: "Mozilla",
+	jane := Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
 		Referer: "https://psychometrist.ir/login"} // the token in the query is not kept
 
 	assert.Equal(t, "/orders.S/UpdateOrder", evs[0].Action)
@@ -183,7 +184,7 @@ func TestHTTPMiddleware(t *testing.T) {
 	require.Len(t, evs, 3)
 	assert.Equal(t, "PUT /orders/5", evs[0].Action)
 	assert.Equal(t, Denied, evs[0].Outcome)
-	assert.Equal(t, Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", IP: "203.0.113.7", UserAgent: "Mozilla",
+	assert.Equal(t, Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
 		Referer: "https://dashboard.psychometrist.ir/orders/5"}, evs[0].Actor)
 	assert.EqualValues(t, 403, evs[0].Metadata["http.status_code"])
 
