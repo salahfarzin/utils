@@ -396,8 +396,8 @@ func (r *Recorder) snapshot(v any) (json.RawMessage, error) {
 }
 
 // actor resolves who acted: an explicit As, else the authenticated user, else
-// anonymous inside a request or system outside one. IP and user agent come
-// from the request when the actor doesn't set them.
+// anonymous inside a request or system outside one. IP, user agent and
+// Referer come from the request when the actor doesn't set them.
 func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor) Actor {
 	var a Actor
 	var ip, ua string
@@ -431,6 +431,9 @@ func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor)
 	}
 	if a.UserAgent == "" {
 		a.UserAgent = ua
+	}
+	if a.Referer == "" && st != nil {
+		a.Referer = st.getReferer()
 	}
 	return a
 }

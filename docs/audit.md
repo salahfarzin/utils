@@ -39,8 +39,11 @@ The interceptor alone gives you, with no handler changes:
   naming the caller when the token was valid;
 - every **write** method (`Create*`, `Update*`, `Delete*`, `Set*`, `Add*`, `Remove*`,
   `Cancel*`, … or exactly the ones in `audit.Methods(...)`) as success or failure;
-- the caller's IP (`x-forwarded-for` from the gateway, else the peer), user agent and
-  `x-request-id`, for these events and for `Record` calls in handlers.
+- the caller's IP (`x-forwarded-for` from the gateway, else the peer), user agent,
+  `Referer` and `x-request-id`, for these events and for `Record` calls in handlers. The
+  Referer keeps only scheme, host and path: its query and fragment can carry one-time
+  tokens (password reset, magic links, OAuth `code`), which must not reach the audit log.
+  Across sites browsers usually send only the origin.
 
 `audit.Skip("/pkg.Service/Method")` turns a method off. Streaming calls aren't
 intercepted; record them with `Record`.
@@ -161,5 +164,5 @@ own, and every service's events read alike. What it must set:
 
 - `event_id`: a UUID (v7 preferred), new per event, so a re-delivery is stored once.
 - `schema_version` 1, `occurred_at` (RFC 3339), `service`, `action`, `outcome`.
-- `actor`: `{type: user, id, email, ip, user_agent}` inside a request, `system` outside.
+- `actor`: `{type: user, id, email, ip, user_agent, referer}` inside a request, `system` outside.
 - `resource`: `{type, id}`. Use it as the Kafka key (`type/id`), so one record's events stay in order.

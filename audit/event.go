@@ -47,6 +47,9 @@ type Actor struct {
 	Email     string    `json:"email,omitempty"`
 	IP        string    `json:"ip,omitempty"`
 	UserAgent string    `json:"user_agent,omitempty"`
+	// Referer is the page the request came from: scheme, host and path only
+	// (see cleanReferer). Browsers often send just the origin across sites.
+	Referer string `json:"referer,omitempty"`
 }
 
 // Resource is the record the action was performed on.

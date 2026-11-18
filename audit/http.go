@@ -10,7 +10,7 @@ import (
 // HTTPMiddleware is UnaryServerInterceptor for plain REST services: it
 // records denials (403 always, 401 on writes) and every POST, PUT, PATCH and
 // DELETE as success (< 400) or failure, and gives handlers' Record calls the
-// caller's IP, user agent and X-Request-Id. Wrap the auth middleware with
+// caller's IP, user agent, Referer and X-Request-Id. Wrap the auth middleware with
 // WrapHTTPAuth so audit knows who was denied.
 //
 // For grpc-gateway services use only UnaryServerInterceptor: the gateway's
@@ -77,6 +77,7 @@ func isWrite(method string) bool {
 func httpRequestState(r *http.Request) *requestState {
 	st := &requestState{
 		userAgent: r.UserAgent(),
+		referer:   cleanReferer(r.Referer()),
 		requestID: r.Header.Get("X-Request-Id"),
 	}
 	switch {

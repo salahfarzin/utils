@@ -3,6 +3,15 @@
 Changes merged into `dev` since [v1.8.0](v1.8.0.md). When tagging, rename this file to the
 new version, set the heading and date, and start a fresh `unreleased.md`.
 
+## Features
+
+- `audit`: events record where the request came from, `actor.referer`, next to the IP and
+  user agent: the `Referer` header on REST, `grpcgateway-referer` (or `referer`) on gRPC.
+  Only scheme, host and path are kept; the query and fragment, which can hold one-time
+  tokens, are dropped, and anything that isn't an http(s) URL is ignored. The schema
+  (`event.v1.json`) allows the field: update the audit service before the services that
+  send it, or it rejects their events.
+
 ## Fixes
 
 - `kafka`: a consumer no longer stops for good when the broker restarts. Its loop took any
