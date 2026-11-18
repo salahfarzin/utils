@@ -9,8 +9,8 @@ new version, set the heading and date, and start a fresh `unreleased.md`.
   user agent: the `Referer` header on REST, `grpcgateway-referer` (or `referer`) on gRPC.
   Only scheme, host and path are kept; the query and fragment, which can hold one-time
   tokens, are dropped, and anything that isn't an http(s) URL is ignored. The schema
-  (`event.v1.json`) allows the field: update the audit service before the services that
-  send it, or it rejects their events.
+  (`event.v1.json`) allows the field. The audit service ignores fields it doesn't know,
+  so services and the audit service can take this version in any order.
 
 ## Fixes
 
