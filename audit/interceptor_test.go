@@ -46,7 +46,7 @@ func authOK(token string) (*middlewares.User, error) {
 func grpcCall(t *testing.T, rec *Recorder, method, token string, handler grpc.UnaryHandler) error {
 	t.Helper()
 	md := metadata.Pairs("x-forwarded-for", "203.0.113.7, 10.0.0.1", "grpcgateway-user-agent", "Mozilla",
-		"grpcgateway-referer", "https://psychometrist.ir/login?reset_token=s3cret#otp", "x-request-id", "req-1")
+		"grpcgateway-referer", "https://www.example.com/login?reset_token=s3cret#otp", "x-request-id", "req-1")
 	if token != "" {
 		md.Append("authorization", "Bearer "+token)
 	}
@@ -96,7 +96,7 @@ func TestUnaryInterceptor(t *testing.T) {
 	evs := pub.events(t)
 	require.Len(t, evs, 5)
 	jane := Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
-		Referer: "https://psychometrist.ir/login"} // the token in the query is not kept
+		Referer: "https://www.example.com/login"} // the token in the query is not kept
 
 	assert.Equal(t, "/orders.S/UpdateOrder", evs[0].Action)
 	assert.Equal(t, Success, evs[0].Outcome)
@@ -163,7 +163,7 @@ func TestHTTPMiddleware(t *testing.T) {
 		req := httptest.NewRequest(method, path, nil)
 		req.Header.Set("User-Agent", "Mozilla")
 		req.Header.Set("X-Forwarded-For", "203.0.113.7")
-		req.Header.Set("Referer", "https://dashboard.psychometrist.ir/orders/5?code=abc")
+		req.Header.Set("Referer", "https://app.example.org/orders/5?code=abc")
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -185,7 +185,7 @@ func TestHTTPMiddleware(t *testing.T) {
 	assert.Equal(t, "PUT /orders/5", evs[0].Action)
 	assert.Equal(t, Denied, evs[0].Outcome)
 	assert.Equal(t, Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
-		Referer: "https://dashboard.psychometrist.ir/orders/5"}, evs[0].Actor)
+		Referer: "https://app.example.org/orders/5"}, evs[0].Actor)
 	assert.EqualValues(t, 403, evs[0].Metadata["http.status_code"])
 
 	assert.Equal(t, Denied, evs[1].Outcome)
@@ -197,19 +197,19 @@ func TestHTTPMiddleware(t *testing.T) {
 
 func TestCleanReferer(t *testing.T) {
 	for raw, want := range map[string]string{
-		"https://psychometrist.ir/login?token=abc#frag": "https://psychometrist.ir/login",
-		"https://user:pass@psychometrist.ir/a":          "https://psychometrist.ir/a",
-		"http://localhost:5173/":                        "http://localhost:5173/",
-		"https://psychometrist.ir":                      "https://psychometrist.ir",
-		"  https://jiewar.ir/x  ":                       "https://jiewar.ir/x",
-		"":                                              "",
-		"android-app://com.example":                     "",
-		"/relative/path":                                "",
-		"javascript:alert(1)":                           "",
-		"https://%zz":                                   "",
+		"https://example.com/login?token=abc#frag": "https://example.com/login",
+		"https://user:pass@example.net/a":          "https://example.net/a",
+		"http://localhost:5173/":                   "http://localhost:5173/",
+		"https://shop.example.com":                 "https://shop.example.com",
+		"  https://example.org/x  ":                "https://example.org/x",
+		"":                                         "",
+		"android-app://com.example":                "",
+		"/relative/path":                           "",
+		"javascript:alert(1)":                      "",
+		"https://%zz":                              "",
 	} {
 		assert.Equal(t, want, cleanReferer(raw), "cleanReferer(%q)", raw)
 	}
-	long := "https://psychometrist.ir/" + strings.Repeat("a", 1000)
+	long := "https://example.net/" + strings.Repeat("a", 1000)
 	assert.Len(t, cleanReferer(long), 512)
 }
