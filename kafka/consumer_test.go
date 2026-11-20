@@ -3,6 +3,7 @@ package kafka_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -111,9 +112,16 @@ func TestNewConsumer(t *testing.T) {
 func TestRunConsumerLoop(t *testing.T) {
 	testutils.InitLogger(t)
 
+	// stopAfter cancels the loop's context on the reader's next call, which
+	// then fails as a read does on shutdown.
+	stopAfter := func(r *MockMessageReader, cancel context.CancelFunc) {
+		r.On("ReadMessage", mock.Anything).Run(func(mock.Arguments) { cancel() }).Return(kafka.Message{}, context.Canceled).Once()
+	}
+
 	t.Run("Successful message processing", func(t *testing.T) {
 		mockReader := &MockMessageReader{}
 		mockHandler := &MockHandler{}
+		ctx, cancel := context.WithCancel(context.Background())
 
 		msg := kafka.Message{
 			Topic:     "test-topic",
@@ -125,35 +133,57 @@ func TestRunConsumerLoop(t *testing.T) {
 		}
 
 		mockReader.On("ReadMessage", mock.Anything).Return(msg, nil).Once()
-		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, context.Canceled).Once()
+		stopAfter(mockReader, cancel)
 		mockHandler.On("Handle", mock.Anything, []byte("key"), []byte("value")).Return(nil)
 
-		kafkaPkg.RunConsumerLoopWithSleeper(mockReader, mockHandler, &kafkaPkg.TestSleeper{})
+		kafkaPkg.RunConsumerLoopWithContext(ctx, mockReader, mockHandler, &kafkaPkg.TestSleeper{})
 
 		mockReader.AssertExpectations(t)
 		mockHandler.AssertExpectations(t)
 	})
 
-	t.Run("Context canceled error", func(t *testing.T) {
+	t.Run("Stops when its context is cancelled", func(t *testing.T) {
 		mockReader := &MockMessageReader{}
 		mockHandler := &MockHandler{}
+		ctx, cancel := context.WithCancel(context.Background())
 
-		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, context.Canceled)
+		stopAfter(mockReader, cancel)
 
-		kafkaPkg.RunConsumerLoopWithSleeper(mockReader, mockHandler, &kafkaPkg.TestSleeper{})
+		kafkaPkg.RunConsumerLoopWithContext(ctx, mockReader, mockHandler, &kafkaPkg.TestSleeper{})
 
 		mockReader.AssertExpectations(t)
 		mockHandler.AssertNotCalled(t, "Handle", mock.Anything, mock.Anything, mock.Anything)
 	})
 
+	t.Run("Keeps going after the client's own timeout or cancellation", func(t *testing.T) {
+		// A broker restarting: kafka-go's dial and group-join timeouts surface as
+		// these, while the service is still running. The loop used to stop for good.
+		mockReader := &MockMessageReader{}
+		mockHandler := &MockHandler{}
+		ctx, cancel := context.WithCancel(context.Background())
+
+		msg := kafka.Message{Topic: "test-topic", Key: []byte("k"), Value: []byte("v"), Time: time.Now()}
+		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, context.DeadlineExceeded).Times(12)
+		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, fmt.Errorf("join group: %w", context.Canceled)).Once()
+		mockReader.On("ReadMessage", mock.Anything).Return(msg, nil).Once()
+		stopAfter(mockReader, cancel)
+		mockHandler.On("Handle", mock.Anything, []byte("k"), []byte("v")).Return(nil).Once()
+
+		kafkaPkg.RunConsumerLoopWithContext(ctx, mockReader, mockHandler, &kafkaPkg.TestSleeper{})
+
+		mockReader.AssertExpectations(t)
+		mockHandler.AssertExpectations(t)
+	})
+
 	t.Run("EOF error with retry logic", func(t *testing.T) {
 		mockReader := &MockMessageReader{}
 		mockHandler := &MockHandler{}
+		ctx, cancel := context.WithCancel(context.Background())
 
 		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, io.EOF).Times(11)
-		mockReader.On("ReadMessage", mock.Anything).Return(kafka.Message{}, context.Canceled).Once()
+		stopAfter(mockReader, cancel)
 
-		kafkaPkg.RunConsumerLoopWithSleeper(mockReader, mockHandler, &kafkaPkg.TestSleeper{})
+		kafkaPkg.RunConsumerLoopWithContext(ctx, mockReader, mockHandler, &kafkaPkg.TestSleeper{})
 
 		mockReader.AssertExpectations(t)
 		mockHandler.AssertNotCalled(t, "Handle", mock.Anything, mock.Anything, mock.Anything)

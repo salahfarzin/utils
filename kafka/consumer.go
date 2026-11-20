@@ -116,10 +116,18 @@ func RunConsumerLoop(reader MessageReader, handler Handler) {
 	RunConsumerLoopWithSleeper(reader, handler, &DefaultSleeper{})
 }
 
-// RunConsumerLoopWithSleeper runs the main consumer loop with configurable sleep behavior
+// RunConsumerLoopWithSleeper runs the main consumer loop with configurable sleep behavior.
+// It runs for the life of the process; RunConsumerLoopWithContext stops with a context.
 func RunConsumerLoopWithSleeper(reader MessageReader, handler Handler, sleeper Sleeper) {
+	RunConsumerLoopWithContext(context.Background(), reader, handler, sleeper)
+}
+
+// RunConsumerLoopWithContext runs the consumer loop until ctx is done. Only
+// ctx ends it: a read error, a timeout or cancellation from the Kafka client
+// included (as while the broker restarts), is retried, so the consumer never
+// stops for good while the service keeps running.
+func RunConsumerLoopWithContext(ctx context.Context, reader MessageReader, handler Handler, sleeper Sleeper) {
 	log := logger.Get()
-	ctx := context.Background()
 	const maxRetries = 10
 	retryCount := 0
 	lastErrorTime := time.Time{}
@@ -129,7 +137,7 @@ func RunConsumerLoopWithSleeper(reader MessageReader, handler Handler, sleeper S
 	for {
 		msg, err := reader.ReadMessage(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			if ctx.Err() != nil {
 				log.Info("Kafka consumer: context cancelled, shutting down")
 				return
 			}
