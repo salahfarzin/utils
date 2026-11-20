@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/salahfarzin/utils/middlewares"
@@ -36,14 +37,16 @@ func authOK(token string) (*middlewares.User, error) {
 	if token != "good" {
 		return nil, errors.New("invalid")
 	}
-	return &middlewares.User{ID: "7", Uuid: "u-1", Email: "jane@example.com",
+	first, last := "Jane", " Doe "
+	return &middlewares.User{ID: "7", Uuid: "u-1", Email: "jane@example.com", FirstName: &first, LastName: &last,
 		Permissions: middlewares.Permissions{"orders": {"view"}}}, nil
 }
 
 // grpcCall runs audit → auth → handler, the documented chain.
 func grpcCall(t *testing.T, rec *Recorder, method, token string, handler grpc.UnaryHandler) error {
 	t.Helper()
-	md := metadata.Pairs("x-forwarded-for", "203.0.113.7, 10.0.0.1", "grpcgateway-user-agent", "Mozilla", "x-request-id", "req-1")
+	md := metadata.Pairs("x-forwarded-for", "203.0.113.7, 10.0.0.1", "grpcgateway-user-agent", "Mozilla",
+		"grpcgateway-referer", "https://www.example.com/login?reset_token=s3cret#otp", "x-request-id", "req-1")
 	if token != "" {
 		md.Append("authorization", "Bearer "+token)
 	}
@@ -92,7 +95,8 @@ func TestUnaryInterceptor(t *testing.T) {
 
 	evs := pub.events(t)
 	require.Len(t, evs, 5)
-	jane := Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", IP: "203.0.113.7", UserAgent: "Mozilla"}
+	jane := Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
+		Referer: "https://www.example.com/login"} // the token in the query is not kept
 
 	assert.Equal(t, "/orders.S/UpdateOrder", evs[0].Action)
 	assert.Equal(t, Success, evs[0].Outcome)
@@ -159,6 +163,7 @@ func TestHTTPMiddleware(t *testing.T) {
 		req := httptest.NewRequest(method, path, nil)
 		req.Header.Set("User-Agent", "Mozilla")
 		req.Header.Set("X-Forwarded-For", "203.0.113.7")
+		req.Header.Set("Referer", "https://app.example.org/orders/5?code=abc")
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -179,7 +184,8 @@ func TestHTTPMiddleware(t *testing.T) {
 	require.Len(t, evs, 3)
 	assert.Equal(t, "PUT /orders/5", evs[0].Action)
 	assert.Equal(t, Denied, evs[0].Outcome)
-	assert.Equal(t, Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", IP: "203.0.113.7", UserAgent: "Mozilla"}, evs[0].Actor)
+	assert.Equal(t, Actor{Type: ActorUser, ID: "u-1", Email: "jane@example.com", Name: "Jane Doe", IP: "203.0.113.7", UserAgent: "Mozilla",
+		Referer: "https://app.example.org/orders/5"}, evs[0].Actor)
 	assert.EqualValues(t, 403, evs[0].Metadata["http.status_code"])
 
 	assert.Equal(t, Denied, evs[1].Outcome)
@@ -187,4 +193,23 @@ func TestHTTPMiddleware(t *testing.T) {
 
 	assert.Equal(t, "order.create", evs[2].Action)
 	assert.Equal(t, "u-1", evs[2].Actor.ID)
+}
+
+func TestCleanReferer(t *testing.T) {
+	for raw, want := range map[string]string{
+		"https://example.com/login?token=abc#frag": "https://example.com/login",
+		"https://user:pass@example.net/a":          "https://example.net/a",
+		"http://localhost:5173/":                   "http://localhost:5173/",
+		"https://shop.example.com":                 "https://shop.example.com",
+		"  https://example.org/x  ":                "https://example.org/x",
+		"":                                         "",
+		"android-app://com.example":                "",
+		"/relative/path":                           "",
+		"javascript:alert(1)":                      "",
+		"https://%zz":                              "",
+	} {
+		assert.Equal(t, want, cleanReferer(raw), "cleanReferer(%q)", raw)
+	}
+	long := "https://example.net/" + strings.Repeat("a", 1000)
+	assert.Len(t, cleanReferer(long), 512)
 }
