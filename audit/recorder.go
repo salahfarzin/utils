@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -396,8 +397,8 @@ func (r *Recorder) snapshot(v any) (json.RawMessage, error) {
 }
 
 // actor resolves who acted: an explicit As, else the authenticated user, else
-// anonymous inside a request or system outside one. IP and user agent come
-// from the request when the actor doesn't set them.
+// anonymous inside a request or system outside one. IP, user agent and
+// Referer come from the request when the actor doesn't set them.
 func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor) Actor {
 	var a Actor
 	var ip, ua string
@@ -416,7 +417,7 @@ func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor)
 		}
 		switch {
 		case user != nil:
-			a = Actor{Type: ActorUser, ID: user.Uuid, Email: user.Email}
+			a = Actor{Type: ActorUser, ID: user.Uuid, Email: user.Email, Name: fullName(user)}
 			if a.ID == "" {
 				a.ID = user.ID
 			}
@@ -432,6 +433,9 @@ func (r *Recorder) actor(ctx context.Context, st *requestState, explicit *Actor)
 	if a.UserAgent == "" {
 		a.UserAgent = ua
 	}
+	if a.Referer == "" && st != nil {
+		a.Referer = st.getReferer()
+	}
 	return a
 }
 
@@ -440,4 +444,15 @@ func (r *Recorder) logger() *zap.Logger {
 		return r.cfg.log
 	}
 	return safelog.Get()
+}
+
+// fullName is the user's first and last name, as far as auth gave them.
+func fullName(u *middlewares.User) string {
+	var parts []string
+	for _, p := range []*string{u.FirstName, u.LastName} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			parts = append(parts, strings.TrimSpace(*p))
+		}
+	}
+	return strings.Join(parts, " ")
 }

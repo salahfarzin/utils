@@ -105,7 +105,8 @@ func (c *interceptorConfig) auditedMethod(fullMethod string) bool {
 //   - denials: PermissionDenied always, Unauthenticated on audited methods;
 //   - audited methods (writes, see Methods) as success or failure;
 //
-// and gives handlers' Record calls the caller's IP, user agent and request id.
+// and gives handlers' Record calls the caller's IP, user agent, Referer and
+// request id.
 // If a handler calls Record itself, the automatic event is skipped, so the
 // handler's (with before/after) is the only one.
 //
@@ -159,13 +160,15 @@ func grpcRequestState(ctx context.Context) *requestState {
 		}
 		return ""
 	}
-	// grpc-gateway forwards the client's address and user agent under these.
+	// grpc-gateway forwards the client's address, user agent and Referer
+	// under these.
 	if fwd := first("x-forwarded-for"); fwd != "" {
 		st.ip = strings.TrimSpace(strings.Split(fwd, ",")[0])
 	} else if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
 		st.ip = hostOnly(p.Addr.String())
 	}
 	st.userAgent = first("grpcgateway-user-agent", "user-agent")
+	st.referer = cleanReferer(first("grpcgateway-referer", "referer"))
 	st.requestID = first("x-request-id")
 	return st
 }
